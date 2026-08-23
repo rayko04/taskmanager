@@ -11,27 +11,55 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Hello, taskmanager.")
 }
 
-
 //closure so handler can access repo
 func createTasksHandler(repo *repository.TaskRepository) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
+
+			//GET
 		case http.MethodGet:
 			
 			tasks := repo.GetAll()
 
 			data, err := json.Marshal(tasks)
 			if err != nil {
-				fmt.Println("error marshalling")
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
 
 			w.Header().Set("Content-Type", "application/json")
 			w.Write(data)
 		
+
+			//POST
 		case http.MethodPost:
-			fmt.Fprintln(w, "post")
+			//json to go
+			decoder := json.NewDecoder(r.Body)
+			req := &model.TaskRequest{}		//Decode requires a pointer
+			err := decoder.Decode(req)
+			if err != nil {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
+
+			task := model.Task {
+				Title: req.Title,
+				Description: req.Description,
+			}
+			task = repo.Create(task)
+
+			//send back response in json
+			data, err := json.Marshal(task)
+			if err != nil {
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			w.Write(data)
+
 		default:
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
