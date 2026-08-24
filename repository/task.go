@@ -46,3 +46,14 @@ func (repo TaskRepository) GetById(searchId int) (model.Task, bool) {
 	task, exists := repo.tasks[searchId]
 	return task, exists
 }
+
+func (repo TaskRepository) Delete(searchId int) bool {
+	
+	_, exists := repo.tasks[searchId]
+	if !exists {
+		return false
+	}
+	
+	delete(repo.tasks, searchId)
+	return true
+}

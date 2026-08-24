@@ -101,6 +101,32 @@ func createTasksHandler(repo *repository.TaskRepository) http.HandlerFunc{
 			w.WriteHeader(http.StatusCreated)
 			w.Write(data)
 
+		case http.MethodDelete: 
+
+			//if ends in tasks
+			if len(path) == 2 && path[len(path)-1] == "tasks" {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			} else if len(path) == 3 && path[len(path)-2] == "tasks" {
+				//if ends in tasks/[smthin]
+
+				id, error := strconv.Atoi(path[len(path)-1])
+				if error != nil {
+					http.Error(w, "Bad Request", http.StatusBadRequest)
+					return
+				}
+
+				deleted := repo.Delete(id)
+				if !deleted {
+					http.Error(w, "Not Found", http.StatusNotFound)
+					return
+				}
+				w.WriteHeader(http.StatusNoContent)
+			} else {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
+
 		default:
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}
