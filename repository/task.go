@@ -41,3 +41,8 @@ func (repo TaskRepository) GetAll() []model.Task {
 
 	return slice
 }
+
+func (repo TaskRepository) GetById(searchId int) (model.Task, bool) {
+	task, exists := repo.tasks[searchId]
+	return task, exists
+}
