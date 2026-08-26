@@ -127,6 +127,56 @@ func createTasksHandler(repo *repository.TaskRepository) http.HandlerFunc{
 				return
 			}
 
+		case http.MethodPut: 
+
+				//if ends in tasks
+			if len(path) == 2 && path[len(path)-1] == "tasks" {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			} else if len(path) == 3 && path[len(path)-2] == "tasks" {
+				//if ends in tasks/[smthin]
+
+				id, error := strconv.Atoi(path[len(path)-1])
+				if error != nil {
+					http.Error(w, "Bad Request", http.StatusBadRequest)
+					return
+				}
+
+				decoder := json.NewDecoder(r.Body)
+				req := &model.TaskUpdateRequest{}	//Decode requires a pointer
+				err := decoder.Decode(req)
+				if err != nil {
+					http.Error(w, "Bad Request", http.StatusBadRequest)
+					return
+				}
+
+				task := model.Task {
+					Title: req.Title,
+					Description: req.Description,
+					Completed: req.Completed,
+				}
+				updated := false
+
+				task, updated = repo.Update(id, task)
+				if !updated {
+					http.Error(w, "Not Found", http.StatusNotFound)
+					return
+				}
+
+				//send back response in json
+				data, err := json.Marshal(task)
+				if err != nil {
+					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.Write(data)
+			} else {
+				http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
+
 		default:
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		}

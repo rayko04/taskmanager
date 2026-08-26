@@ -57,3 +57,17 @@ func (repo TaskRepository) Delete(searchId int) bool {
 	delete(repo.tasks, searchId)
 	return true
 }
+
+func (repo TaskRepository) Update(searchId int, task model.Task) (model.Task, bool) {
+
+	_, exists := repo.tasks[searchId]
+	if !exists {
+		return model.Task{}, false
+	}
+	task.ID = searchId
+	task.CreatedAt = repo.tasks[searchId].CreatedAt
+	task.UpdatedAt = time.Now()
+
+	repo.tasks[searchId] = task
+	return task, true
+}
