@@ -28,21 +28,34 @@ func endsInTaskId(path []string) bool {
 	return len(path) == 3 && path[len(path)-2] == "tasks"
 }
 
+func jsonResponse(w http.ResponseWriter, status int, data any) {
+
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	w.Write(bytes)
+}
+
+func validReq(req *model.TaskRequest) bool {
+	
+	if strings.TrimSpace(req.Title) == "" {
+		return false
+	}
+	return true
+}
+
 //handles getall()
 func getTasksHandler(repo *repository.TaskRepository) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
 
 		tasks := repo.GetAll()
-		
-		data, err := json.Marshal(tasks)
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
+		jsonResponse(w, http.StatusOK, tasks)
 	}
 }
 
@@ -64,14 +77,7 @@ func getTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 			return
 		}
 
-		data, err := json.Marshal(task)
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
+		jsonResponse(w, http.StatusOK, task)
 	}
 }
 
@@ -83,8 +89,9 @@ func createTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 		//json to go
 		decoder := json.NewDecoder(r.Body)
 		req := &model.TaskRequest{}		//Decode requires a pointer
+		
 		err := decoder.Decode(req)
-		if err != nil {
+		if err != nil || !validReq(req) {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
@@ -96,15 +103,7 @@ func createTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 		task = repo.Create(task)
 
 		//send back response in json
-		data, err := json.Marshal(task)
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		w.Write(data)
+		jsonResponse(w, http.StatusCreated, task)
 	}
 }
 
@@ -144,14 +143,39 @@ func updateTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 		}
 
 		//send back response in json
-		data, err := json.Marshal(task)
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		jsonResponse(w, http.StatusOK, task)
+	}
+}
+
+//handles PATCH
+func patchTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
+
+	return func (w http.ResponseWriter, r *http.Request) {
+
+		path := trimAndSplit(r.URL.Path)
+
+		
+		id, error := strconv.Atoi(path[len(path)-1])
+		if error != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(data)
+		decoder := json.NewDecoder(r.Body)
+		req := &model.TaskPatchRequest{}	//Decode requires a pointer
+		err := decoder.Decode(req)
+		if err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		task, patched := repo.Patch(id, *req)
+		if !patched {
+			http.Error(w, "Not Found", http.StatusNotFound)
+			return
+		}
+		//send back response in json
+		jsonResponse(w, http.StatusOK, task)
 	}
 }
 
@@ -207,6 +231,8 @@ func individualDispatcher(repo*repository.TaskRepository) http.HandlerFunc {
 				deleteTaskHandler(repo)(w, r)
 			case http.MethodPut:
 				updateTaskHandler(repo)(w, r)
+			case http.MethodPatch:
+				patchTaskHandler(repo)(w, r)
 			default:
 				http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 				return

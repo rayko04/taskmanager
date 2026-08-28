@@ -71,3 +71,25 @@ func (repo TaskRepository) Update(searchId int, task model.Task) (model.Task, bo
 	repo.tasks[searchId] = task
 	return task, true
 }
+
+func (repo TaskRepository) Patch(searchId int, req model.TaskPatchRequest) (model.Task, bool) {
+
+	task, exists := repo.tasks[searchId]
+	if !exists {
+		return model.Task{}, false
+	}
+
+	if req.Title != nil {
+		task.Title = *req.Title
+	}
+	if req.Description != nil {
+		task.Description = *req.Description
+	}
+	if req.Completed != nil {
+		task.Completed = *req.Completed
+	}
+
+	task.UpdatedAt = time.Now()
+	repo.tasks[searchId] = task
+	return task, true
+}
