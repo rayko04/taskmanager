@@ -17,9 +17,9 @@ type TaskRequest struct {
 }
 
 type TaskUpdateRequest struct {
-	Title			string		`json:"title"`
-	Description		string		`json:"description"`
-	Completed		bool		`json:"completed"`
+	Title			*string		`json:"title"`
+	Description		*string		`json:"description"`
+	Completed		*bool		`json:"completed"`
 }
 
 type TaskPatchRequest struct {

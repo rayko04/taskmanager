@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,6 +42,7 @@ func jsonResponse(w http.ResponseWriter, status int, data any) {
 	w.Write(bytes)
 }
 
+//a valid post request must conatin a valid title 
 func validReq(req *model.TaskRequest) bool {
 	
 	if strings.TrimSpace(req.Title) == "" {
@@ -49,7 +51,43 @@ func validReq(req *model.TaskRequest) bool {
 	return true
 }
 
-//handles getall()
+//a valid update request must contain all fields
+func validUpdateReq(req *model.TaskUpdateRequest) bool {
+
+	if req.Title == nil || req.Description == nil || req.Completed == nil {
+		return false
+	}
+	return true
+}
+
+//a valid patch request must contain atleast one field
+func validPatchReq(req *model.TaskPatchRequest) bool {
+
+	if req.Title == nil && req.Description == nil && req.Completed == nil {
+		return false
+	}
+	return true
+}
+
+//decode JSON into Golang
+func decodeJSON(read io.ReadCloser, dest any) error {
+	
+	decoder := json.NewDecoder(read)
+	decoder.DisallowUnknownFields()	//err if any unknown value inside json
+	
+	err := decoder.Decode(dest)
+	if err != nil {
+		return err
+	}
+
+	err = decoder.Decode(&struct{}{})	// err if any non json trailing value
+	if err == io.EOF {
+		return nil
+	}
+	return err
+}
+
+//handles GET all
 func getTasksHandler(repo *repository.TaskRepository) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
@@ -59,6 +97,7 @@ func getTasksHandler(repo *repository.TaskRepository) http.HandlerFunc{
 	}
 }
 
+//handles GET by id
 func getTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
@@ -86,11 +125,11 @@ func createTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
 
-		//json to go
-		decoder := json.NewDecoder(r.Body)
+		//json to golang
+
 		req := &model.TaskRequest{}		//Decode requires a pointer
-		
-		err := decoder.Decode(req)
+		err := decodeJSON(r.Body, req)
+
 		if err != nil || !validReq(req) {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
@@ -121,18 +160,18 @@ func updateTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 			return
 		}
 
-		decoder := json.NewDecoder(r.Body)
 		req := &model.TaskUpdateRequest{}	//Decode requires a pointer
-		err := decoder.Decode(req)
-		if err != nil {
+		err := decodeJSON(r.Body, req)
+
+		if err != nil || !validUpdateReq(req) {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
 
 		task := model.Task {
-			Title: req.Title,
-			Description: req.Description,
-			Completed: req.Completed,
+			Title: *req.Title,
+			Description: *req.Description,
+			Completed: *req.Completed,
 		}
 		updated := false
 
@@ -154,17 +193,15 @@ func patchTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 
 		path := trimAndSplit(r.URL.Path)
 
-		
 		id, error := strconv.Atoi(path[len(path)-1])
 		if error != nil {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
 
-		decoder := json.NewDecoder(r.Body)
 		req := &model.TaskPatchRequest{}	//Decode requires a pointer
-		err := decoder.Decode(req)
-		if err != nil {
+		err := decodeJSON(r.Body, req)
+		if err != nil || !validPatchReq(req) {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
@@ -179,6 +216,7 @@ func patchTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 	}
 }
 
+//handles delete
 func deleteTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
@@ -208,6 +246,9 @@ func collectionDispatcher(repo *repository.TaskRepository) http.HandlerFunc {
 			getTasksHandler(repo)(w, r)
 		case http.MethodPost:
 			createTaskHandler(repo)(w, r)
+		case http.MethodDelete, http.MethodPut, http.MethodPatch:
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
 		default:
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
@@ -218,27 +259,37 @@ func collectionDispatcher(repo *repository.TaskRepository) http.HandlerFunc {
 func individualDispatcher(repo*repository.TaskRepository) http.HandlerFunc {
 
 	return func (w http.ResponseWriter, r *http.Request) {
+		
+		switch r.Method {
+		case http.MethodGet:
+			getTaskHandler(repo)(w, r)
+		case http.MethodDelete:
+			deleteTaskHandler(repo)(w, r)
+		case http.MethodPut:
+			updateTaskHandler(repo)(w, r)
+		case http.MethodPatch:
+			patchTaskHandler(repo)(w, r)
+		case http.MethodPost:
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		default:
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		
+	}
+}
 
+func dispatcher(repo*repository.TaskRepository) http.HandlerFunc {
+
+	return func (w http.ResponseWriter, r *http.Request) {
 		path := trimAndSplit(r.URL.Path)
 		if endsInTasks(path) {
-			http.Redirect(w, r, "/tasks", http.StatusMovedPermanently)
-			return
+			collectionDispatcher(repo)(w, r)
 		} else if endsInTaskId(path) {
-			switch r.Method {
-			case http.MethodGet:
-				getTaskHandler(repo)(w, r)
-			case http.MethodDelete:
-				deleteTaskHandler(repo)(w, r)
-			case http.MethodPut:
-				updateTaskHandler(repo)(w, r)
-			case http.MethodPatch:
-				patchTaskHandler(repo)(w, r)
-			default:
-				http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-				return
-			}
+			individualDispatcher(repo)(w, r)
 		} else {
-			http.Error(w, "Not Found", http.StatusNotFound)
+			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
 	}
@@ -249,8 +300,8 @@ func main() {
 	repo := repository.NewTaskRepository()
 
 	http.HandleFunc("/", rootHandler)
-	http.HandleFunc("/tasks", collectionDispatcher(repo))
-	http.HandleFunc("/tasks/", individualDispatcher(repo))
+	http.HandleFunc("/tasks", dispatcher(repo))
+	http.HandleFunc("/tasks/", dispatcher(repo))
 
 	port := ":8080"
  
