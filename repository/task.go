@@ -3,11 +3,13 @@ package repository
 import (
 	"taskmanager/model"
 	"time"
+	"sync"
 )
 
 type TaskRepository struct {
+	mu 			sync.RWMutex
 	tasks		map[int]model.Task
-	nextId	int
+	nextId		int
 }
 
 func NewTaskRepository() *TaskRepository{
@@ -18,6 +20,9 @@ func NewTaskRepository() *TaskRepository{
 }
 
 func (repo *TaskRepository) Create(task model.Task) model.Task {
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	
 	task.ID = repo.nextId
 	task.Completed = false
@@ -32,7 +37,11 @@ func (repo *TaskRepository) Create(task model.Task) model.Task {
 	return task
 }
 
-func (repo TaskRepository) GetAll() []model.Task {
+func (repo *TaskRepository) GetAll() []model.Task {
+
+	repo.mu.RLock()
+	defer repo.mu.RUnlock()
+
 	slice := []model.Task{}
 
 	for _, task := range repo.tasks {
@@ -42,23 +51,35 @@ func (repo TaskRepository) GetAll() []model.Task {
 	return slice
 }
 
-func (repo TaskRepository) GetById(searchId int) (model.Task, bool) {
+func (repo *TaskRepository) GetById(searchId int) (model.Task, bool) {
+	
+	repo.mu.RLock()
+	defer repo.mu.RUnlock()
+
 	task, exists := repo.tasks[searchId]
+
 	return task, exists
 }
 
-func (repo TaskRepository) Delete(searchId int) bool {
-	
+func (repo *TaskRepository) Delete(searchId int) bool {
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+
 	_, exists := repo.tasks[searchId]
 	if !exists {
 		return false
 	}
 	
 	delete(repo.tasks, searchId)
+
 	return true
 }
 
-func (repo TaskRepository) Update(searchId int, task model.Task) (model.Task, bool) {
+func (repo *TaskRepository) Update(searchId int, task model.Task) (model.Task, bool) {
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 
 	_, exists := repo.tasks[searchId]
 	if !exists {
@@ -69,10 +90,14 @@ func (repo TaskRepository) Update(searchId int, task model.Task) (model.Task, bo
 	task.UpdatedAt = time.Now()
 
 	repo.tasks[searchId] = task
+	
 	return task, true
 }
 
-func (repo TaskRepository) Patch(searchId int, req model.TaskPatchRequest) (model.Task, bool) {
+func (repo *TaskRepository) Patch(searchId int, req model.TaskPatchRequest) (model.Task, bool) {
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 
 	task, exists := repo.tasks[searchId]
 	if !exists {
@@ -91,5 +116,6 @@ func (repo TaskRepository) Patch(searchId int, req model.TaskPatchRequest) (mode
 
 	task.UpdatedAt = time.Now()
 	repo.tasks[searchId] = task
+	
 	return task, true
 }
