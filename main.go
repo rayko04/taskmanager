@@ -9,6 +9,7 @@ import (
 	"strings"
 	"taskmanager/model"
 	"taskmanager/repository"
+	"time"
 )
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Hello, taskmanager.")
@@ -302,10 +303,8 @@ func main() {
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/tasks", dispatcher(repo))
 	http.HandleFunc("/tasks/", dispatcher(repo))
-
-	port := ":8080"
  
-	//test: no POST yet
+	//test
 	for i := 0; i < 5; i++ {
 		task := model.Task {
 			Title: "abc",
@@ -314,10 +313,18 @@ func main() {
 		repo.Create(task)
 	}
 
-	err := http.ListenAndServe(port, nil)
+	port := ":8080"
+
+	serv := http.Server{
+		Addr: port,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+	
+	err := serv.ListenAndServe()
 	if err != nil {
 		fmt.Println("Failed to establish connection:", err)
 		return
 	}
-
 }
