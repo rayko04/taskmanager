@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"taskmanager/database"
 	"taskmanager/model"
 	"taskmanager/repository"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Hello, taskmanager.")
@@ -93,7 +96,11 @@ func getTasksHandler(repo *repository.TaskRepository) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
 
-		tasks := repo.GetAll()
+		tasks, err := repo.GetAll()
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 		jsonResponse(w, http.StatusOK, tasks)
 	}
 }
@@ -140,7 +147,11 @@ func createTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 			Title: req.Title,
 			Description: req.Description,
 		}
-		task = repo.Create(task)
+		task, err = repo.Create(task)
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 
 		//send back response in json
 		jsonResponse(w, http.StatusCreated, task)
@@ -298,20 +309,32 @@ func dispatcher(repo*repository.TaskRepository) http.HandlerFunc {
 
 func main() {
 
-	repo := repository.NewTaskRepository()
+	err := godotenv.Load(".env")
+	if err != nil {
+		fmt.Println("Failed to load .env:", err)
+		return
+	}
+
+	pool, err := database.NewPool()
+	if err != nil {
+		fmt.Println("Failed to create pool:", err)
+		return
+	}
+
+	repo := repository.NewTaskRepository(pool)
 
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/tasks", dispatcher(repo))
 	http.HandleFunc("/tasks/", dispatcher(repo))
  
 	//test
-	for i := 0; i < 5; i++ {
-		task := model.Task {
-			Title: "abc",
-			Description: "def",
-		}
-		repo.Create(task)
-	}
+	// for i := 0; i < 5; i++ {
+	// 	task := model.Task {
+	// 		Title: "abc",
+	// 		Description: "def",
+	// 	}
+	// 	repo.Create(task)
+	// }
 
 	port := ":8080"
 
@@ -322,7 +345,7 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 	
-	err := serv.ListenAndServe()
+	err = serv.ListenAndServe()
 	if err != nil {
 		fmt.Println("Failed to establish connection:", err)
 		return

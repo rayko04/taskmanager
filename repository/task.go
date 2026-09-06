@@ -1,54 +1,73 @@
 package repository
 
 import (
+	"context"
+	"sync"
 	"taskmanager/model"
 	"time"
-	"sync"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type TaskRepository struct {
 	mu 			sync.RWMutex
+	pool 		*pgxpool.Pool
 	tasks		map[int]model.Task
 	nextId		int
 }
 
-func NewTaskRepository() *TaskRepository{
+func NewTaskRepository(pl *pgxpool.Pool) *TaskRepository{
 	return &TaskRepository {
+		pool:  pl,
 		tasks: map[int]model.Task{},
 		nextId: 1,
 	}
 }
 
-func (repo *TaskRepository) Create(task model.Task) model.Task {
+func (repo *TaskRepository) Create(task model.Task) (model.Task, error) {
 
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	
-	task.ID = repo.nextId
-	task.Completed = false
-	
 	now := time.Now()
 	task.CreatedAt = now
 	task.UpdatedAt = now
 
-	repo.tasks[repo.nextId] = task
-	repo.nextId += 1
-
-	return task
+	err := repo.pool.QueryRow(
+		context.Background(), 
+		"INSERT INTO tasks (title, description, created_at, updated_at) VALUES ($1, $2, $3, $4) RETURNING id", 
+		task.Title, task.Description, task.CreatedAt, task.UpdatedAt,
+	).Scan(&task.ID)
+	
+	return task, err
 }
 
-func (repo *TaskRepository) GetAll() []model.Task {
+func (repo *TaskRepository) GetAll() ([]model.Task, error) {
 
-	repo.mu.RLock()
-	defer repo.mu.RUnlock()
+	rows, err := repo.pool.Query(
+		context.Background(),
+		"SELECT * FROM tasks",
+	)
+	if err != nil {
+		return nil, err
+	}
 
+	defer rows.Close()
+	
 	slice := []model.Task{}
+	for rows.Next() {
+		var task model.Task
 
-	for _, task := range repo.tasks {
+		err := rows.Scan(&task.ID, &task.Title, &task.Description, &task.Completed, &task.CreatedAt, &task.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+
 		slice = append(slice, task)
 	}
 
-	return slice
+	if err := rows.Err(); err != nil {
+		return nil, nil
+	}
+
+	return slice, err
 }
 
 func (repo *TaskRepository) GetById(searchId int) (model.Task, bool) {
