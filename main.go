@@ -12,6 +12,7 @@ import (
 	"taskmanager/repository"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 )
 func rootHandler(w http.ResponseWriter, r *http.Request) {
@@ -118,9 +119,12 @@ func getTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 			return
 		}
 		
-		task, exists := repo.GetById(id)
-		if !exists {
+		task, err := repo.GetById(id)
+		if err == pgx.ErrNoRows {
 			http.Error(w, "Not Found", http.StatusNotFound)
+			return
+		} else if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
@@ -185,11 +189,13 @@ func updateTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 			Description: *req.Description,
 			Completed: *req.Completed,
 		}
-		updated := false
 
-		task, updated = repo.Update(id, task)
-		if !updated {
+		task, err = repo.Update(id, task)
+		if err == pgx.ErrNoRows {
 			http.Error(w, "Not Found", http.StatusNotFound)
+			return
+		} else if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
@@ -218,11 +224,15 @@ func patchTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 			return
 		}
 
-		task, patched := repo.Patch(id, *req)
-		if !patched {
+		task, err := repo.Patch(id, *req)
+		if err == pgx.ErrNoRows {
 			http.Error(w, "Not Found", http.StatusNotFound)
 			return
+		} else if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
 		}
+
 		//send back response in json
 		jsonResponse(w, http.StatusOK, task)
 	}
@@ -241,7 +251,11 @@ func deleteTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 			return
 		}
 
-		deleted := repo.Delete(id)
+		deleted, err := repo.Delete(id)
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 		if !deleted {
 			http.Error(w, "Not Found", http.StatusNotFound)
 			return

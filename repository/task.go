@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"sync"
 	"taskmanager/model"
 	"time"
 
@@ -10,17 +9,12 @@ import (
 )
 
 type TaskRepository struct {
-	mu 			sync.RWMutex
 	pool 		*pgxpool.Pool
-	tasks		map[int]model.Task
-	nextId		int
 }
 
 func NewTaskRepository(pl *pgxpool.Pool) *TaskRepository{
 	return &TaskRepository {
 		pool:  pl,
-		tasks: map[int]model.Task{},
-		nextId: 1,
 	}
 }
 
@@ -32,9 +26,9 @@ func (repo *TaskRepository) Create(task model.Task) (model.Task, error) {
 
 	err := repo.pool.QueryRow(
 		context.Background(), 
-		"INSERT INTO tasks (title, description, created_at, updated_at) VALUES ($1, $2, $3, $4) RETURNING id", 
+		"INSERT INTO tasks (title, description, created_at, updated_at) VALUES ($1, $2, $3, $4) RETURNING id, completed", 
 		task.Title, task.Description, task.CreatedAt, task.UpdatedAt,
-	).Scan(&task.ID)
+	).Scan(&task.ID, &task.Completed)
 	
 	return task, err
 }
@@ -43,7 +37,7 @@ func (repo *TaskRepository) GetAll() ([]model.Task, error) {
 
 	rows, err := repo.pool.Query(
 		context.Background(),
-		"SELECT * FROM tasks",
+		"SELECT id, title, description, completed, created_at, updated_at FROM tasks",
 	)
 	if err != nil {
 		return nil, err
@@ -64,77 +58,71 @@ func (repo *TaskRepository) GetAll() ([]model.Task, error) {
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, nil
+		return nil, err
 	}
 
-	return slice, err
+	return slice, nil
 }
 
-func (repo *TaskRepository) GetById(searchId int) (model.Task, bool) {
-	
-	repo.mu.RLock()
-	defer repo.mu.RUnlock()
+func (repo *TaskRepository) GetById(searchId int) (model.Task, error) {
 
-	task, exists := repo.tasks[searchId]
+	task := model.Task{}
+	err := repo.pool.QueryRow(
+		context.Background(),
+		"SELECT id, title, description, completed, created_at, updated_at FROM tasks WHERE id = $1",
+		searchId, 
+	).Scan(&task.ID, &task.Title, &task.Description, &task.Completed, &task.CreatedAt, &task.UpdatedAt)
 
-	return task, exists
+	return task, err
 }
 
-func (repo *TaskRepository) Delete(searchId int) bool {
+func (repo *TaskRepository) Delete(searchId int) (bool, error) {
 
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
+	result, err := repo.pool.Exec(
+		context.Background(),
+		"DELETE FROM tasks WHERE id = $1",
+		searchId,
+	)
 
-	_, exists := repo.tasks[searchId]
-	if !exists {
-		return false
-	}
-	
-	delete(repo.tasks, searchId)
-
-	return true
-}
-
-func (repo *TaskRepository) Update(searchId int, task model.Task) (model.Task, bool) {
-
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-
-	_, exists := repo.tasks[searchId]
-	if !exists {
-		return model.Task{}, false
-	}
-	task.ID = searchId
-	task.CreatedAt = repo.tasks[searchId].CreatedAt
-	task.UpdatedAt = time.Now()
-
-	repo.tasks[searchId] = task
-	
-	return task, true
-}
-
-func (repo *TaskRepository) Patch(searchId int, req model.TaskPatchRequest) (model.Task, bool) {
-
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-
-	task, exists := repo.tasks[searchId]
-	if !exists {
-		return model.Task{}, false
+	if err != nil {
+    	return false, err
 	}
 
+	return result.RowsAffected() > 0, nil
+}
+
+func (repo *TaskRepository) Update(searchId int, task model.Task) (model.Task, error) {
+
+	err := repo.pool.QueryRow(
+		context.Background(),
+		"UPDATE tasks SET title = $1, description = $2, completed = $3, updated_at = $4 WHERE id = $5 RETURNING id, title, description, completed, created_at, updated_at;",
+		task.Title, task.Description, task.Completed, time.Now(), searchId,
+	).Scan(&task.ID, &task.Title, &task.Description, &task.Completed, &task.CreatedAt, &task.UpdatedAt)
+
+	return task, err
+}
+
+func (repo *TaskRepository) Patch(searchId int, req model.TaskPatchRequest) (model.Task, error) {
+
+	var title, desc, comp any
 	if req.Title != nil {
-		task.Title = *req.Title
-	}
-	if req.Description != nil {
-		task.Description = *req.Description
-	}
-	if req.Completed != nil {
-		task.Completed = *req.Completed
+		title = *req.Title	//0-value for any is nil
 	}
 
-	task.UpdatedAt = time.Now()
-	repo.tasks[searchId] = task
-	
-	return task, true
+	if req.Description != nil {
+		desc = *req.Description
+	}
+
+	if req.Completed != nil {
+		comp = *req.Completed
+	}
+
+	task := model.Task{}
+	err := repo.pool.QueryRow(
+		context.Background(),
+		"UPDATE tasks SET title = COALESCE($1, title), description = COALESCE($2, description), completed = COALESCE($3, completed), updated_at = $4 WHERE id = $5 RETURNING id, title, description, completed, created_at, updated_at;",
+		title, desc, comp, time.Now(), searchId,
+	).Scan(&task.ID, &task.Title, &task.Description, &task.Completed, &task.CreatedAt, &task.UpdatedAt)
+
+	return task, err
 }
