@@ -1,0 +1,22 @@
+info:
+  name: POST /tasks
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: http://localhost:8080/tasks
+  body:
+    type: json
+    data: |-
+      {
+        "title": "Learn Go testing",
+        "description": "Write proper tests for Task Manager"}
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

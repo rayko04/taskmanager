@@ -1,0 +1,24 @@
+info:
+  name: PUT /tasks/:id
+  type: http
+  seq: 4
+
+http:
+  method: PUT
+  url: http://localhost:8080/tasks/1
+  body:
+    type: json
+    data: |-
+      {
+        "title": "Learn Go Tesing",
+        "description": "Write tests",
+        "completed": false
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
