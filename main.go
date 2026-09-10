@@ -26,12 +26,12 @@ func trimAndSplit(str string) []string {
 		return path
 }
 
-func endsInTasks(path []string) bool {
-	return len(path) == 2 && path[len(path)-1] == "tasks"
+func isCollectionPath(path []string) bool {
+	return len(path) == 2 && path[0] == "/" && path[len(path)-1] == "tasks"
 }
 
-func endsInTaskId(path []string) bool {
-	return len(path) == 3 && path[len(path)-2] == "tasks"
+func isIndividualPath(path []string) bool {
+	return len(path) == 3 && path[0] == "/" && path[len(path)-2] == "tasks"
 }
 
 func jsonResponse(w http.ResponseWriter, status int, data any) {
@@ -310,9 +310,9 @@ func dispatcher(repo*repository.TaskRepository) http.HandlerFunc {
 
 	return func (w http.ResponseWriter, r *http.Request) {
 		path := trimAndSplit(r.URL.Path)
-		if endsInTasks(path) {
+		if isCollectionPath(path) {
 			collectionDispatcher(repo)(w, r)
-		} else if endsInTaskId(path) {
+		} else if isIndividualPath(path) {
 			individualDispatcher(repo)(w, r)
 		} else {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
