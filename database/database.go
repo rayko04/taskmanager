@@ -1,14 +1,14 @@
 package database
 
 import (
-	"github.com/jackc/pgx/v5/pgxpool"
-	"os"
 	"context"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func NewPool() (*pgxpool.Pool, error) {
+func NewPool(url string) (*pgxpool.Pool, error) {
 
-	pool, err := pgxpool.New(context.Background(), os.Getenv("DATABASE_URL"))
+	pool, err := pgxpool.New(context.Background(), url)
 	if err != nil {
 		return nil, err
 	}

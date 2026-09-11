@@ -11,7 +11,7 @@ import (
 	"taskmanager/model"
 	"taskmanager/repository"
 	"time"
-
+	"os"
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 )
@@ -27,11 +27,11 @@ func trimAndSplit(str string) []string {
 }
 
 func isCollectionPath(path []string) bool {
-	return len(path) == 2 && path[0] == "/" && path[len(path)-1] == "tasks"
+	return len(path) == 2 && path[0] == "" && path[len(path)-1] == "tasks"
 }
 
 func isIndividualPath(path []string) bool {
-	return len(path) == 3 && path[0] == "/" && path[len(path)-2] == "tasks"
+	return len(path) == 3 && path[0] == "" && path[len(path)-2] == "tasks"
 }
 
 func jsonResponse(w http.ResponseWriter, status int, data any) {
@@ -329,7 +329,7 @@ func main() {
 		return
 	}
 
-	pool, err := database.NewPool()
+	pool, err := database.NewPool(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		fmt.Println("Failed to create pool:", err)
 		return
