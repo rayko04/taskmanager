@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"taskmanager/database"
 	"taskmanager/model"
 	"taskmanager/repository"
 	"time"
-	"os"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
 )
@@ -92,8 +93,12 @@ func decodeJSON(read io.ReadCloser, dest any) error {
 	return err
 }
 
+type TaskReader interface {
+	GetAll() ([]model.Task, error)
+}
+
 //handles GET all
-func getTasksHandler(repo *repository.TaskRepository) http.HandlerFunc{
+func getTasksHandler(repo TaskReader) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
 
@@ -106,8 +111,12 @@ func getTasksHandler(repo *repository.TaskRepository) http.HandlerFunc{
 	}
 }
 
+type TaskByIdReader interface {
+	GetById(int) (model.Task, error)
+}
+
 //handles GET by id
-func getTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
+func getTaskHandler(repo TaskByIdReader) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
 
@@ -132,8 +141,12 @@ func getTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 	}
 }
 
+type TaskCreator interface {
+    Create(task model.Task) (model.Task, error)
+}
+
 //handles POST
-func createTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
+func createTaskHandler(repo TaskCreator) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
 
@@ -162,8 +175,12 @@ func createTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 	}
 }
 
+type TaskUpdater interface {
+	Update(int, model.Task) (model.Task, error)
+}
+
 //handles PUT
-func updateTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
+func updateTaskHandler(repo TaskUpdater) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
 
@@ -204,8 +221,12 @@ func updateTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 	}
 }
 
+type TaskPatcher interface {
+    Patch(int, model.TaskPatchRequest) (model.Task, error)
+}
+
 //handles PATCH
-func patchTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
+func patchTaskHandler(repo TaskPatcher) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
 
@@ -238,8 +259,12 @@ func patchTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
 	}
 }
 
+type TaskDeleter interface {
+	Delete(int) (bool, error)
+}
+
 //handles delete
-func deleteTaskHandler(repo *repository.TaskRepository) http.HandlerFunc{
+func deleteTaskHandler(repo TaskDeleter) http.HandlerFunc{
 
 	return func (w http.ResponseWriter, r *http.Request) {
 

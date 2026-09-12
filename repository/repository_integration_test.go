@@ -7,6 +7,7 @@ import (
 	"taskmanager/model"
 	"testing"
 	"time"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -27,13 +28,14 @@ func initialize() (*pgxpool.Pool, *TaskRepository, error) {
 	_, err = pool.Exec(context.Background(), "DELETE FROM tasks")
 	if err != nil {
 		pool.Close()
-    	return nil, nil, err
+		return nil, nil, err
 	}
 
 	repo := NewTaskRepository(pool)
 	return pool, repo, nil
 }
 
+// CREATE TASK
 func TestCreate(t *testing.T) {
 
 	pool, repo, err := initialize()
@@ -46,29 +48,29 @@ func TestCreate(t *testing.T) {
 	desc := "test"
 
 	task := model.Task{
-		Title: title,
+		Title:       title,
 		Description: desc,
 	}
-	task, err =  repo.Create(task)
+	task, err = repo.Create(task)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if task.ID == 0 {
 		t.Errorf("ID returned 0")
-	} 
+	}
 	if task.Description != desc {
 		t.Errorf("Mismatched Description")
-	} 
+	}
 	if task.Title != title {
 		t.Errorf("Mismatched Title")
-	} 
+	}
 	if task.Completed != false {
 		t.Error("Completed returned true")
 	}
 	if task.CreatedAt.IsZero() {
 		t.Errorf("CreatedAt not set")
-	} 
+	}
 	if task.UpdatedAt.IsZero() {
 		t.Errorf("UpdatedAt not set")
 	}
@@ -80,26 +82,26 @@ func TestCreate(t *testing.T) {
 
 	if task.ID == 0 {
 		t.Errorf("ID returned 0")
-	} 
+	}
 	if task.Description != desc {
 		t.Errorf("Mismatched Description")
-	} 
+	}
 	if task.Title != title {
 		t.Errorf("Mismatched Title")
-	} 
+	}
 	if task.Completed != false {
 		t.Error("Completed returned true")
 	}
 	if task.CreatedAt.IsZero() {
 		t.Errorf("CreatedAt not set")
-	} 
+	}
 	if task.UpdatedAt.IsZero() {
 		t.Errorf("UpdatedAt not set")
 	}
 
 }
 
-
+// GET ALL TASKS
 func TestGetAll(t *testing.T) {
 
 	pool, repo, err := initialize()
@@ -111,15 +113,15 @@ func TestGetAll(t *testing.T) {
 	title := "Test"
 	desc := "test"
 
-	task := model.Task {
-		Title: title,
+	task := model.Task{
+		Title:       title,
 		Description: desc,
 	}
 
 	expectedCount := 5
 	for i := 0; i < expectedCount; i++ {
-		
-	 	_, err = repo.Create(task)
+
+		_, err = repo.Create(task)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -136,20 +138,20 @@ func TestGetAll(t *testing.T) {
 
 	for _, task := range tasks {
 		if task.ID == 0 {
-		t.Errorf("ID returned 0")
-		} 
+			t.Errorf("ID returned 0")
+		}
 		if task.Description != desc {
 			t.Errorf("Mismatched Description")
-		} 
+		}
 		if task.Title != title {
 			t.Errorf("Mismatched Title")
-		} 
+		}
 		if task.Completed != false {
 			t.Error("Completed returned true")
 		}
 		if task.CreatedAt.IsZero() {
 			t.Errorf("CreatedAt not set")
-		} 
+		}
 		if task.UpdatedAt.IsZero() {
 			t.Errorf("UpdatedAt not set")
 		}
@@ -157,7 +159,7 @@ func TestGetAll(t *testing.T) {
 
 }
 
-
+// GET TASK
 func TestGetById(t *testing.T) {
 
 	pool, repo, err := initialize()
@@ -169,8 +171,8 @@ func TestGetById(t *testing.T) {
 	title := "Test"
 	desc := "test"
 
-	task := model.Task {
-		Title: title,
+	task := model.Task{
+		Title:       title,
 		Description: desc,
 	}
 
@@ -185,26 +187,27 @@ func TestGetById(t *testing.T) {
 	}
 
 	if task.ID == 0 {
-	t.Errorf("ID returned 0")
-	} 
+		t.Errorf("ID returned 0")
+	}
 	if task.Description != desc {
 		t.Errorf("Mismatched Description")
-	} 
+	}
 	if task.Title != title {
 		t.Errorf("Mismatched Title")
-	} 
+	}
 	if task.Completed != false {
 		t.Error("Completed returned true")
 	}
 	if task.CreatedAt.IsZero() {
 		t.Errorf("CreatedAt not set")
-	} 
+	}
 	if task.UpdatedAt.IsZero() {
 		t.Errorf("UpdatedAt not set")
 	}
 
 }
 
+// GET MISSING
 func TestGetByIdNotFound(t *testing.T) {
 
 	pool, repo, err := initialize()
@@ -219,6 +222,7 @@ func TestGetByIdNotFound(t *testing.T) {
 	}
 }
 
+// UPDATE TASK
 func TestUpdate(t *testing.T) {
 
 	pool, repo, err := initialize()
@@ -227,8 +231,8 @@ func TestUpdate(t *testing.T) {
 	}
 	defer pool.Close()
 
-	task := model.Task {
-		Title: "abc",
+	task := model.Task{
+		Title:       "abc",
 		Description: "efg",
 	}
 
@@ -245,9 +249,9 @@ func TestUpdate(t *testing.T) {
 	updateTime := task.UpdatedAt
 
 	update := model.Task{
-		Title: title,
+		Title:       title,
 		Description: desc,
-		Completed: comp,
+		Completed:   comp,
 	}
 
 	task, err = repo.Update(task.ID, update)
@@ -255,7 +259,7 @@ func TestUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if task.ID == 0 || task.ID != id {
-    	t.Errorf("ID changed: expected %d, got %d", id, task.ID)
+		t.Errorf("ID changed: expected %d, got %d", id, task.ID)
 	}
 	if task.Description != desc {
 		t.Errorf("Description mismatch: expected %q, got %q", desc, task.Description)
@@ -267,7 +271,7 @@ func TestUpdate(t *testing.T) {
 		t.Errorf("Completed mismatch: expected %t, got %t", comp, task.Completed)
 	}
 	if !task.CreatedAt.Truncate(time.Microsecond).Equal(createTime.Truncate(time.Microsecond)) {
-    	t.Errorf("CreatedAt changed: expected %v, got %v", createTime, task.CreatedAt)
+		t.Errorf("CreatedAt changed: expected %v, got %v", createTime, task.CreatedAt)
 	}
 	if !task.UpdatedAt.After(updateTime) {
 		t.Errorf("UpdatedAt was not advanced: previous %v, got %v", updateTime, task.UpdatedAt)
@@ -275,7 +279,7 @@ func TestUpdate(t *testing.T) {
 
 }
 
-
+// PATCH TASK
 func TestPatch(t *testing.T) {
 
 	pool, repo, err := initialize()
@@ -295,10 +299,10 @@ func TestPatch(t *testing.T) {
 		expectedCompleted bool
 	}{
 		{
-			name:              "single field",
-			initialTitle:      "abc",
-			initialDesc:       "efg",
-			initialCompleted:  false,
+			name:             "single field",
+			initialTitle:     "abc",
+			initialDesc:      "efg",
+			initialCompleted: false,
 			patch: model.TaskPatchRequest{
 				Title: new("Test"),
 			},
@@ -307,10 +311,10 @@ func TestPatch(t *testing.T) {
 			expectedCompleted: false,
 		},
 		{
-			name:              "multiple fields",
-			initialTitle:      "abc",
-			initialDesc:       "efg",
-			initialCompleted:  false,
+			name:             "multiple fields",
+			initialTitle:     "abc",
+			initialDesc:      "efg",
+			initialCompleted: false,
 			patch: model.TaskPatchRequest{
 				Title:     new("Test"),
 				Completed: new(true),
@@ -320,10 +324,10 @@ func TestPatch(t *testing.T) {
 			expectedCompleted: true,
 		},
 		{
-			name:              "explicit false",
-			initialTitle:      "abc",
-			initialDesc:       "efg",
-			initialCompleted:  true,
+			name:             "explicit false",
+			initialTitle:     "abc",
+			initialDesc:      "efg",
+			initialCompleted: true,
 			patch: model.TaskPatchRequest{
 				Completed: new(false),
 			},
@@ -394,6 +398,7 @@ func TestPatch(t *testing.T) {
 	}
 }
 
+// PATCH MISSING
 func TestPatchNotFound(t *testing.T) {
 
 	pool, repo, err := initialize()
@@ -414,6 +419,7 @@ func TestPatchNotFound(t *testing.T) {
 	}
 }
 
+// DELETE TASK
 func TestDelete(t *testing.T) {
 
 	pool, repo, err := initialize()
@@ -422,8 +428,8 @@ func TestDelete(t *testing.T) {
 	}
 	defer pool.Close()
 
-	task := model.Task {
-		Title: "abc",
+	task := model.Task{
+		Title:       "abc",
 		Description: "efg",
 	}
 
@@ -446,6 +452,7 @@ func TestDelete(t *testing.T) {
 	}
 }
 
+// DELETE MISSING
 func TestDeleteNotFound(t *testing.T) {
 
 	pool, repo, err := initialize()
