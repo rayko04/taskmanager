@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -12,9 +14,10 @@ import (
 	"taskmanager/model"
 	"taskmanager/repository"
 	"time"
-
+	"os/signal"
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
+	"syscall"
 )
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "Hello, taskmanager.")
@@ -350,14 +353,19 @@ func main() {
 
 	err := godotenv.Load(".env")
 	if err != nil {
-		fmt.Println("Failed to load .env:", err)
-		return
+		log.Println("No .env file found; checking environment variables")
 	}
 
-	pool, err := database.NewPool(os.Getenv("DATABASE_URL"))
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		log.Fatal("DATABASE_URL is required.")
+	}
+
+	pool, err := database.NewPool(databaseURL)
 	if err != nil {
-		fmt.Println("Failed to create pool:", err)
-		return
+		log.Fatal("DATABASE_URL is required.")
+		//fmt.Println("Failed to create pool:", err)
+		//return
 	}
 
 	repo := repository.NewTaskRepository(pool)
@@ -365,15 +373,21 @@ func main() {
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/tasks", dispatcher(repo))
 	http.HandleFunc("/tasks/", dispatcher(repo))
- 
-	//test
-	// for i := 0; i < 5; i++ {
-	// 	task := model.Task {
-	// 		Title: "abc",
-	// 		Description: "def",
-	// 	}
-	// 	repo.Create(task)
-	// }
+
+	//health check
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+    	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+    	defer cancel()
+
+    	if err := pool.Ping(ctx); err != nil {
+        	http.Error(w, "database unavailable", http.StatusServiceUnavailable)
+        	return
+    	}
+
+    	w.WriteHeader(http.StatusOK)
+    	_, _ = w.Write([]byte("ok"))
+	})
+
 
 	port := ":8080"
 
@@ -383,10 +397,34 @@ func main() {
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	
-	err = serv.ListenAndServe()
-	if err != nil {
-		fmt.Println("Failed to establish connection:", err)
-		return
+	go func() {
+		err = serv.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			fmt.Println("Failed to establish connection:", err)
+			return
+		}
+	}()
+
+	//wait till signal
+	<-ctx.Done()
+	log.Println("Shutting down server...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := serv.Shutdown(shutdownCtx); err != nil {
+    	log.Printf("Graceful shutdown failed: %v", err)
+    	
+		if err := serv.Close(); err != nil {
+        	log.Printf("Error closing server: %v", err)
+    	}
 	}
+
+	pool.Close()
+	log.Println("Server exited cleanly.")
 }
+

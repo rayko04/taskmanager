@@ -1,4 +1,5 @@
 .vscode
 .env
 repository/ConcurrentCreate_test.go
+.git
 .env.docker
