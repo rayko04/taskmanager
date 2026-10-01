@@ -15,10 +15,10 @@ import (
 
 func initialize() (*pgxpool.Pool, *TaskRepository, error) {
 
-	err := godotenv.Load("../.env")
-	if err != nil {
-		return nil, nil, err
-	}
+	_ = godotenv.Load("../.env")
+	//if err != nil {			//if no env, fall to environment var
+	//	return nil, nil, err
+	//}
 
 	pool, err := database.NewPool(os.Getenv("TEST_DATABASE_URL"))
 	if err != nil {
