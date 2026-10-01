@@ -1,0 +1,74 @@
+
+name: Task Manager CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test and Build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: taskmanager
+          POSTGRES_USER: taskmanager_user
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U taskmanager_user -d taskmanager"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://taskmanager_user:ci_password@localhost:5432/taskmanager?sslmode=disable
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Check formatting
+        run: |
+          files="$(gofmt -l .)"
+          if [ -n "$files" ]; then
+            echo "These files need formatting:"
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Static analysis
+        run: go vet ./...
+
+      - name: Apply database migrations
+        run: |
+          docker run --rm --network host \
+            -v "$PWD/migrations:/migrations" \
+            migrate/migrate \
+            -path=/migrations \
+            -database "$DATABASE_URL" \
+            up
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Build application
+        run: go build -v ./...
