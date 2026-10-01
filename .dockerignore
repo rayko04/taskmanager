@@ -2,4 +2,6 @@
 .env
 repository/ConcurrentCreate_test.go
 .git
-.env.docker
+.env.*
+!.env.example
+!.env.docker.example
