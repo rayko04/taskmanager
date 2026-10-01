@@ -7,7 +7,7 @@ import (
 	"taskmanager/model"
 	"testing"
 	"time"
-
+	"fmt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -20,7 +20,12 @@ func initialize() (*pgxpool.Pool, *TaskRepository, error) {
 	//	return nil, nil, err
 	//}
 
-	pool, err := database.NewPool(os.Getenv("TEST_DATABASE_URL"))
+	dbURL := os.Getenv("TEST_DATABASE_URL")
+    if dbURL == "" {
+        return nil, nil, fmt.Errorf("TEST_DATABASE_URL is not set")
+    }
+
+	pool, err := database.NewPool(dbURL)
 	if err != nil {
 		return nil, nil, err
 	}
